@@ -5,11 +5,12 @@
 #include "mmu.h"
 #include "x86.h"
 #include "proc.h"
+#include "pstat.h"
 #include "spinlock.h"
-
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
+  struct pstat pinfo;
 } ptable;
 
 static struct proc *initproc;
@@ -23,6 +24,8 @@ static void wakeup1(void *chan);
 void
 pinit(void)
 {
+
+  
   initlock(&ptable.lock, "ptable");
 }
 
@@ -77,18 +80,19 @@ allocproc(void)
   char *sp;
 
   acquire(&ptable.lock);
-
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  int i = 0;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    i++;
     if(p->state == UNUSED)
       goto found;
-
+	}
   release(&ptable.lock);
   return 0;
 
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-
+  
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -111,6 +115,14 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
+  
+ (ptable.pinfo.inuse[i]) = 0;
+ (ptable.pinfo.pid[i]) = (p->pid);
+ (ptable.pinfo.compticks[i]) = 0;
+ (ptable.pinfo.schedticks[i]) = 0;
+ (ptable.pinfo.sleepticks[i]) = 0;
+ (ptable.pinfo.timeslice[i]) = 1;
+ (ptable.pinfo.switches[i]) = 0;
 
   return p;
 }
@@ -336,20 +348,27 @@ scheduler(void)
       if(p->state != RUNNABLE)
         continue;
 
+      	   
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
+      
       c->proc = p;
+      
       switchuvm(p);
       p->state = RUNNING;
-	  cprintf("about to run process %d\n", c->proc->pid);
-      swtch(&(c->scheduler), p->context);
+      
+        cprintf("process %d\n about to run", p->pid);	   
+        swtch(&(c->scheduler), p->context);
+      
+      
       switchkvm();
 
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
+    
     release(&ptable.lock);
 
   }
@@ -499,14 +518,38 @@ kill(int pid)
 int 
 setslice(int pid, int slice)
 {
-return 0;
+struct proc *p;
+
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->pid == pid){
+     ptable.pinfo.timeslice[pid] = slice;
+      release(&ptable.lock);
+      return 0;
+    }
+  }
+  release(&ptable.lock);
+  return -1;
 }
+
+
 
 int 
 getslice(int pid)
 {
-return 0;
+struct proc *p;
+
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->pid == pid){
+      release(&ptable.lock);
+      return ptable.pinfo.timeslice[pid];
+    }
+  }
+  release(&ptable.lock);
+  return -1;
 }
+
 
 int
 fork2(int slice)
