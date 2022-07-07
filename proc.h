@@ -49,6 +49,9 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  int baseTicks;               // Default size of process time slice
+  int ticksToRun;              // Variable that keeps track of the number of ticks longer the process should run for. Includes compensation ticks, and is decremented in each iteration of scheduler()
+  int sleepTicks;              // Number of ticks the process has been asleep for.
 };
 
 // Process memory is laid out contiguously, low addresses first:
