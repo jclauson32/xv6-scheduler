@@ -7,6 +7,7 @@
 #include "proc.h"
 #include "pstat.h"
 #include "spinlock.h"
+
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
@@ -117,7 +118,7 @@ found:
   p->context->eip = (uint)forkret;
   
  (ptable.pinfo.inuse[i]) = 0;
- (ptable.pinfo.pid[i]) = (p->pid);
+ (ptable.pinfo.pid[i]) = i;
  (ptable.pinfo.compticks[i]) = 0;
  (ptable.pinfo.schedticks[i]) = 0;
  (ptable.pinfo.sleepticks[i]) = 0;
@@ -338,17 +339,20 @@ scheduler(void)
   struct cpu *c = mycpu();
   c->proc = 0;
   
+  
   for(;;){
     // Enable interrupts on this processor.
     sti();
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
+        
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
-        continue;
+          continue;
+      
+       
 
-      	   
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
@@ -367,13 +371,14 @@ scheduler(void)
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
-    }
+     
     
+  }
     release(&ptable.lock);
 
-  }
+  
 }
-
+}
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
 // intena because intena is a property of this
@@ -523,7 +528,9 @@ struct proc *p;
   acquire(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->pid == pid){
+     
      ptable.pinfo.timeslice[pid] = slice;
+
       release(&ptable.lock);
       return 0;
     }
@@ -542,8 +549,10 @@ struct proc *p;
   acquire(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->pid == pid){
+      int return_var = ptable.pinfo.timeslice[pid];
+     
       release(&ptable.lock);
-      return ptable.pinfo.timeslice[pid];
+      return return_var;
     }
   }
   release(&ptable.lock);
